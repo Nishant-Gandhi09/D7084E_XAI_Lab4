@@ -5,46 +5,119 @@ This project explores phishing detection with explainable AI methods. The notebo
 ## Notebook structure
 
 The main notebook is:
-- Lab4_1_Explaining_Phishing_Detectors.ipynb
+- 'Lab4_1_Explaining_Phishing_Detectors.ipynb'
 
 It contains the following stages:
 - Part A: model training and evaluation
 - Part B: explainability with SHAP and LIME
-- Part C: robustness check without external lookup features
-- Part D: rule-based explanation stage
+- Part C: ablation and explanation stability tests
+- Part D: Belief Rule Base (BRB) using the main SHAP features
 
-## Main results from the completed sections
+## Main results
 
 ### Part A
-The supervised models show that the full random forest performs best on the test set, with Macro-F1 around 0.965 and FAR around 0.037. The semi-supervised Random Forest does not improve over the 5% labelled forest, with Macro-F1 decreasing from 0.940 to 0.934 and FAR increasing from 0.062 to 0.071. The self-supervised model slightly improves over the low-label logistic regression, with Macro-F1 increasing from 0.912 to 0.918.
+
+The full Random Forest gives the best test performance, with Macro-F1 '0.965' and FAR '0.037'.
+
+The semi-supervised Random Forest does not improve over the 5% labelled forest:
+- Random Forest (5% labels): Macro-F1 '0.940'
+- Semi-supervised: Macro-F1 '0.934'
+
+The self-supervised model gives a small improvement over the 5% labelled Logistic Regression:
+- Logistic Regression (5% labels): Macro-F1 '0.912'
+- Self-supervised: Macro-F1 '0.918'
 
 ### Part B
-The explainability analysis highlights features such as google_index, page_rank, and nb_www as consistently important. These findings are consistent with the idea that suspicious domains often have weaker search visibility and less reputable web presence. SHAP and LIME both identify the same general patterns, although their local rankings can differ slightly for individual URLs.
+
+The explanation results show that 'google_index', 'page_rank', and 'nb_www' are important across several models. SHAP and LIME generally identify similar phishing clues, although their local rankings can differ for individual URLs.
+
+For the most confident Random Forest mistake, SHAP and LIME agree on 'google_index' and 'nb_www' as important features, but differ on the third feature.
 
 ### Part C
-The robustness check removes seven external lookup features and trains the same Random Forest again without them. The model performance drops from Macro-F1 0.965 to 0.943 and FAR increases from 0.037 to 0.054, showing that the external features contribute meaningfully to prediction quality. Even without those features, the model still relies on URL-based indicators such as nb_hyperlinks, nb_www, phish_hints, safe_anchor, and ratio_extHyperlinks.
 
-## Part D
-To be completed...
+Removing the seven external lookup features reduces Random Forest performance:
+- With external features: Macro-F1 '0.965', FAR '0.037'
+- Without external features: Macro-F1 '0.943', FAR '0.054'
+- Macro-F1 drop: '0.022'
 
-## How to run the notebook
+Without external lookups, the main features include 'nb_hyperlinks', 'nb_www', 'phish_hints', 'safe_anchor', and 'ratio_extHyperlinks'.
 
-1. Open the project folder in Jupyter Notebook or VS Code.
-2. Make sure the dataset is available in the project folder:
-   - data/dataset_phishing.csv
-3. Open the notebook:
-   - Lab4_1_Explaining_Phishing_Detectors.ipynb
-4. Run the cells in order from top to bottom.
-5. The notebook loads the dataset, trains the models, prints evaluation metrics, and generates SHAP/LIME explanation plots.
+The LIME stability test gives the same top three features in '4/5' runs. SHAP TreeExplainer gives the same top three in '5/5' runs for the fixed model and sample.
+
+### Part D
+
+The BRB uses the two highest non-binary SHAP-ranked features:
+- 'page_rank'
+- 'web_traffic'
+
+The Low / Medium / High reference values are calculated only from the training data using the 5th, 50th and 95th percentiles.
+
+Baseline comparison:
+- BRB, 2 features: Macro-F1 '0.817', Recall '0.792', FAR '0.157'
+- Decision Tree, 2 features: Macro-F1 '0.818', Recall '0.811', FAR '0.175'
+- Random Forest, 2 features: Macro-F1 '0.853'
+- Random Forest, all 87 features: Macro-F1 '0.965'
+
+The notebook also tests one manual expert rule change. Changing R4 from '[0.0, 0.75, 0.25]' to '[0.0, 0.2, 0.8]' makes the BRB more suspicious for medium 'page_rank' and low 'web_traffic'. This reduces Macro-F1 from '0.817' to '0.808', so the original data-derived rule performs better.
+
+For the selected incorrect URL, R4 has the largest activation weight. LIME and SHAP are then used to explain the BRB High-risk output.
+
+## Project structure
+
+'''text
+D7084E_XAI_Lab4/
+├── Lab4_1_Explaining_Phishing_Detectors.ipynb
+├── README.md
+└── data/
+    └── dataset_phishing.csv
+'''
+
+The notebook expects the dataset at:
+
+'''text
+data/dataset_phishing.csv
+'''
 
 ## Requirements
 
-The notebook uses the following Python libraries:
+Python 3 with the following packages:
 - pandas
 - numpy
 - scikit-learn
 - matplotlib
 - shap
 - lime
+- jupyter
 
-A standard Python environment with these packages installed is sufficient to run the notebook.
+Install the required packages with:
+
+'''bash
+pip install pandas numpy scikit-learn matplotlib shap lime jupyter
+'''
+
+## How to run
+
+1. Place 'dataset_phishing.csv' inside the 'data/' folder.
+2. Open the project folder in Jupyter Notebook, JupyterLab, or VS Code.
+3. Open 'Lab4_1_Explaining_Phishing_Detectors.ipynb'.
+4. Run the notebook from top to bottom.
+
+The notebook uses 'SEED = 42' for reproducibility.
+
+For the normal final run, keep the expert BRB rule change disabled/commented so D3 creates the original data-derived rules. The manual rule change is only used for the Part D experiment. If the rule-change flag is used, keep:
+
+'''python
+EXPERT_RULE_CHANGE = False
+'''
+
+for the final run. Set it to 'True' only to repeat the expert-rule experiment, then rerun D3-D5.
+
+The notebook will:
+- load and split the phishing dataset,
+- train the supervised, low-label, semi-supervised and self-supervised models,
+- calculate Macro-F1, recall, ROC-AUC and FAR,
+- generate SHAP and LIME explanations,
+- run the external-feature ablation and stability tests,
+- build the BRB and compare it with two-feature and full Random Forest models.
+
+Some SHAP cells can take longer to run because they calculate explanations for multiple samples.
